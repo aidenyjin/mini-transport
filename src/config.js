@@ -4,29 +4,29 @@
 
 export const C = {
   // --- Roads ---------------------------------------------------------------
-  LANE_W: 7,              // width of one lane
+  LANE_W: 8,              // width of one lane
   CURB: 2,                // extra road surface on each side of the outer lanes
-  PED_W: 5,               // width of a street with no lanes (pedestrians only)
+  PED_W: 7,               // width of a street with no lanes (pedestrians only)
   MAX_LANES: 6,
   LANE_ANIM: 9,           // how fast lanes slide open or closed
-  BLOCK_INSET: 26,        // gap between a road's centre line and the buildings
+  BLOCK_INSET: 30,        // gap between a road's centre line and the buildings
   LOT_GAP: 10,            // gap between lots inside a block
-  SIDEWALK: 3.5,          // how far from the road edge people walk
+  SIDEWALK: 4.5,          // how far from the road edge people walk
   TURN_COST: 8,           // routing penalty per intersection, in pixels
 
   // --- Vehicles ------------------------------------------------------------
-  CAR_LEN: 9,
-  CAR_W: 4.6,
+  CAR_LEN: 11,
+  CAR_W: 5.6,
   CAR_SPEED: 58,
   CAR_ACCEL: 70,
-  BUS_LEN: 19,
-  BUS_W: 5.6,
+  BUS_LEN: 23,
+  BUS_W: 7,
   BUS_SPEED: 56,
   BUS_ACCEL: 40,
   BUS_CAP: 40,
-  GAP: 3.5,               // bumper-to-bumper gap when queued
+  GAP: 4,                 // bumper-to-bumper gap when queued
   BRAKE_K: 2.6,           // higher = brakes later and harder
-  CONFLICT_D2: 22,        // squared distance at which two turning paths clash
+  CONFLICT_D2: 30,        // squared distance at which two turning paths clash
   PARK_ANIM: 0.45,        // seconds for a car to drive into a parking building
   GRIDLOCK_S: 45,         // seconds stuck before a car gives up and vanishes
 
@@ -38,7 +38,7 @@ export const C = {
 
   // --- People --------------------------------------------------------------
   WALK_SPEED: 13,
-  DOT_R: 1.75,
+  DOT_R: 2.2,
   WALK_RADIUS: 230,       // furthest people will walk to a stop or from parking
   PR_WALK: 140,           // furthest from a park & ride to its bus stop
   CAR_OWNERSHIP: 0.85,

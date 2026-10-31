@@ -1,5 +1,5 @@
 // Builds the starting city: a street grid split by a river, a downtown of offices and
-// city parking, and houses and apartments around it.
+// city parking, houses and apartments around it, and countryside beyond.
 
 import { C } from './config.js';
 import {
@@ -7,10 +7,11 @@ import {
   ZONE_RES, ZONE_MID, ZONE_CORE, ZONE_PARK, ZONE_WATER,
 } from './model.js';
 
-export const NX = 11;           // intersections across
-export const NY = 7;            // intersections down
-export const SX = 170;          // block spacing
-export const SY = 150;
+// Uneven spacing so the grid reads as a town, not graph paper.
+const XS = [0, 165, 340, 500, 700, 860, 1030, 1190, 1360, 1520, 1690];
+const YS = [0, 150, 290, 450, 600, 740, 890];
+export const NX = XS.length;
+export const NY = YS.length;
 
 const RIVER_COL = 3;            // block column that is water
 const BRIDGE_ROWS = [1, 3, 5];
@@ -37,11 +38,21 @@ function zoneOf(bx, by) {
   return ZONE_RES;
 }
 
+function scatterTrees(rng, out, rect, n, minR = 4, maxR = 8) {
+  for (let k = 0; k < n; k++) {
+    out.push({
+      x: rng.range(rect.x + maxR, rect.x + rect.w - maxR),
+      y: rng.range(rect.y + maxR, rect.y + rect.h - maxR),
+      r: rng.range(minR, maxR),
+    });
+  }
+}
+
 export function buildMap(sim) {
   const net = sim.net;
   const rng = sim.rng;
   const id = (i, j) => j * NX + i;
-  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) net.addNode(i * SX, j * SY);
+  for (let j = 0; j < NY; j++) for (let i = 0; i < NX; i++) net.addNode(XS[i], YS[j]);
 
   for (let j = 0; j < NY; j++) {
     for (let i = 0; i < NX - 1; i++) {
@@ -58,65 +69,91 @@ export function buildMap(sim) {
     }
   }
 
-  const map = {
-    w: (NX - 1) * SX, h: (NY - 1) * SY, blocks: [], parks: [], trees: [], river: [],
-  };
+  const w = XS[NX - 1], h = YS[NY - 1];
+  const map = { w, h, parks: [], trees: [], river: null, waves: [], stubs: [] };
   sim.map = map;
   const inset = C.BLOCK_INSET;
 
   for (let by = 0; by < NY - 1; by++) {
     for (let bx = 0; bx < NX - 1; bx++) {
       const zone = zoneOf(bx, by);
-      const rect = { x: bx * SX + inset, y: by * SY + inset, w: SX - 2 * inset, h: SY - 2 * inset };
+      const rect = {
+        x: XS[bx] + inset, y: YS[by] + inset,
+        w: XS[bx + 1] - XS[bx] - 2 * inset, h: YS[by + 1] - YS[by] - 2 * inset,
+      };
       if (zone === ZONE_WATER) continue;
       if (zone === ZONE_PARK) {
         // Stretch over a missing road so neighbouring park blocks read as one park.
-        if (isPark(bx + 1, by) && net.findSegment(id(bx + 1, by), id(bx + 1, by + 1)) < 0) {
-          rect.w += 2 * inset;
-        }
+        if (isPark(bx + 1, by) && net.findSegment(id(bx + 1, by), id(bx + 1, by + 1)) < 0) rect.w += 2 * inset;
         map.parks.push(rect);
-        const n = Math.round(rect.w * rect.h / 900);
-        for (let k = 0; k < n; k++) {
-          map.trees.push({
-            x: rng.range(rect.x + 8, rect.x + rect.w - 8),
-            y: rng.range(rect.y + 8, rect.y + rect.h - 8),
-            r: rng.range(4, 7.5),
-          });
-        }
+        scatterTrees(rng, map.trees, rect, Math.round(rect.w * rect.h / 420), 4.5, 9);
         continue;
       }
-      map.blocks.push(rect);
-      const lw = (rect.w - C.LOT_GAP) / 2, lh = (rect.h - C.LOT_GAP) / 2;
+      const cols = rect.w >= 150 ? 3 : 2;
+      const lw = (rect.w - C.LOT_GAP * (cols - 1)) / cols, lh = (rect.h - C.LOT_GAP) / 2;
       for (let cy = 0; cy < 2; cy++) {
-        for (let cx = 0; cx < 2; cx++) {
+        for (let cx = 0; cx < cols; cx++) {
           const r = { x: rect.x + cx * (lw + C.LOT_GAP), y: rect.y + cy * (lh + C.LOT_GAP), w: lw, h: lh };
           const center = { x: r.x + r.w / 2, y: r.y + r.h / 2 };
           const access = [];
-          const vi = cx === 0 ? bx : bx + 1;
-          const vseg = net.findSegment(id(vi, by), id(vi, by + 1));
-          if (vseg >= 0) access.push({ seg: vseg, side: cx === 0 ? -1 : 1, edge: cx === 0 ? 'l' : 'r' });
+          if (cx === 0 || cx === cols - 1) {
+            const vi = cx === 0 ? bx : bx + 1;
+            const vseg = net.findSegment(id(vi, by), id(vi, by + 1));
+            if (vseg >= 0) access.push({ seg: vseg, side: cx === 0 ? -1 : 1, edge: cx === 0 ? 'l' : 'r' });
+          }
           const hj = cy === 0 ? by : by + 1;
           const hseg = net.findSegment(id(bx, hj), id(bx + 1, hj));
           if (hseg >= 0) access.push({ seg: hseg, side: cy === 0 ? 1 : -1, edge: cy === 0 ? 't' : 'b' });
+          const trees = [];
+          scatterTrees(rng, trees, { x: r.x + 4, y: r.y + 4, w: r.w - 8, h: r.h - 8 }, rng.int(0, 2), 4, 7);
           sim.lots.push({
             id: sim.lots.length, rect: r, center, zone, bx, by, cx, cy, building: -1,
-            cleared: false, access,
+            cleared: false, access, trees,
           });
         }
       }
     }
   }
 
-  // A gently winding river down the water column.
-  const cx = (RIVER_COL + 0.5) * SX;
-  const half = SX / 2 - inset + 2;
+  // A gently winding river down the water column, with a few ripples on it.
+  const cx = (XS[RIVER_COL] + XS[RIVER_COL + 1]) / 2;
+  const half = (XS[RIVER_COL + 1] - XS[RIVER_COL]) / 2 - inset + 4;
   const left = [], right = [];
-  for (let y = -260; y <= map.h + 260; y += 16) {
-    const wob = Math.sin(y / 95) * 7 + Math.sin(y / 37 + 1.3) * 2.5;
+  for (let y = -500; y <= h + 500; y += 16) {
+    const wob = Math.sin(y / 110) * 8 + Math.sin(y / 41 + 1.3) * 2.5;
     left.push({ x: cx - half + wob, y });
     right.push({ x: cx + half + wob * 0.7, y });
   }
-  map.river = [...left, ...right.reverse()];
+  map.river = { left, right, cx, half };
+  for (let k = 0; k < 26; k++) {
+    map.waves.push({ x: cx + rng.range(-half + 18, half - 18), y: rng.range(-300, h + 300), len: rng.range(8, 16), phase: rng.range(0, 6.28) });
+  }
+
+  // Countryside: clumps of trees outside the town, kept off the roads.
+  const town = { x: -60, y: -60, w: w + 120, h: h + 120 };
+  const outside = (x, y) => x < town.x || x > town.x + town.w || y < town.y || y > town.y + town.h;
+  const nearRiver = (x) => Math.abs(x - cx) < half + 30;
+  for (let k = 0; k < 70; k++) {
+    const ccx = rng.range(-700, w + 700), ccy = rng.range(-500, h + 500);
+    if (!outside(ccx, ccy) || nearRiver(ccx)) continue;
+    const n = rng.int(4, 14), spread = rng.range(20, 55);
+    for (let t = 0; t < n; t++) {
+      const x = rng.normal(ccx, spread), y = rng.normal(ccy, spread);
+      if (outside(x, y) && !nearRiver(x)) map.trees.push({ x, y, r: rng.range(5, 10) });
+    }
+  }
+
+  // Roads leading away from town, fading into the countryside.
+  for (let j = 0; j < NY; j++) {
+    if (j % 2 === 1) {
+      map.stubs.push({ x: 0, y: YS[j], dx: -1, dy: 0, lanes: j === AVENUE_ROW ? 4 : 2 });
+      map.stubs.push({ x: w, y: YS[j], dx: 1, dy: 0, lanes: j === AVENUE_ROW ? 4 : 2 });
+    }
+  }
+  for (const i of [1, AVENUE_COL, 8]) {
+    map.stubs.push({ x: XS[i], y: 0, dx: 0, dy: -1, lanes: i === AVENUE_COL ? 4 : 2 });
+    map.stubs.push({ x: XS[i], y: h, dx: 0, dy: 1, lanes: i === AVENUE_COL ? 4 : 2 });
+  }
 
   // Offices and city parking first, so new residents have somewhere to work.
   for (const lot of sim.lots) {

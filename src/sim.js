@@ -185,7 +185,7 @@ export class Sim {
   addBuilding(lot, type, appear = 0) {
     if (!lot.access.length || lot.building >= 0) return null;
     const acc = lot.access.length > 1 ? this.rng.pick(lot.access) : lot.access[0];
-    const pad = [11, 5, 3, 4, 4][type];
+    const pad = [3, 5, 3, 4, 5][type];
     const r = { x: lot.rect.x + pad, y: lot.rect.y + pad, w: lot.rect.w - 2 * pad, h: lot.rect.h - 2 * pad };
     const door = {
       l: { x: r.x, y: r.y + r.h / 2 }, r: { x: r.x + r.w, y: r.y + r.h / 2 },
@@ -198,11 +198,14 @@ export class Sim {
     else if (type === B_OFFICE) capacity = this.rng.int(...C.OFFICE_JOBS);
     else if (type === B_PARKING) capacity = C.CITY_PARKING_CAP;
     else capacity = C.PARK_RIDE_CAP;
+    // Visual height: downtown towers rise above the rest.
+    const rng = this.rng;
+    const height = [6, rng.range(12, 17), lot.zone === ZONE_CORE ? rng.range(20, 32) : rng.range(13, 20), 8, 6][type];
     const b = {
-      id: this._id(), type, lot: lot.id, rect: r, seg: acc.seg, t, side: acc.side, door,
+      id: this._id(), type, lot: lot.id, rect: r, seg: acc.seg, t, side: acc.side, edge: acc.edge, door,
       place: { x: door.x, y: door.y, seg: acc.seg, t, side: acc.side },
       capacity, people: [], parked: 0, incoming: 0, appear, dying: false,
-      ring: 0, flash: 0, pulse: 0, shade: this.rng.next(),
+      ring: 0, flash: 0, pulse: 0, shade: rng.next(), height, layout: rng.int(0, 2),
     };
     this.buildings.set(b.id, b);
     lot.building = b.id;
@@ -824,6 +827,7 @@ export class Sim {
     let limit = stopS;
     if (leader) limit = Math.min(limit, leader.s - leader.length - C.GAP);
     const target = clamp((limit - v.s) * C.BRAKE_K, 0, v.vmax);
+    v.braking = target < v.v - 0.5 || (v.v < 0.5 && target < 0.5);
     v.v = target < v.v ? target : Math.min(target, v.v + v.accel * dt);
     v.s = Math.max(v.s, Math.min(v.s + v.v * dt, limit));
     if (v.v < 2) v.stuck += dt;
@@ -1385,6 +1389,7 @@ export class Sim {
     };
     this._positionStop(st);
     this.stops.set(st.id, st);
+    this.fx.push({ x: st.x, y: st.y, kind: 'ripple', t: 0 });
     this._changed();
     return st;
   }
@@ -1484,6 +1489,7 @@ export class Sim {
     const center = { x: b.rect.x + b.rect.w / 2, y: b.rect.y + b.rect.h / 2 };
     if (!this.spend(this.demolishCost(b), center)) return false;
     b.dying = true;
+    this.fx.push({ x: center.x, y: center.y, kind: 'dust', t: 0, w: b.rect.w, h: b.rect.h });
     if (isHome(b)) {
       for (const p of [...b.people]) this._removePerson(p);
     } else if (b.type === B_OFFICE) {
@@ -1523,11 +1529,17 @@ export class Sim {
   // --- Hit testing ----------------------------------------------------------------------
 
   buildingAt(p) {
+    // Roofs are drawn raised by half the building's height, so include that in the hit area.
+    // Check front buildings first, since they're drawn over the ones behind.
+    let best = null;
     for (const b of this.buildings.values()) {
       const r = b.rect;
-      if (!b.dying && p.x >= r.x - 2 && p.x <= r.x + r.w + 2 && p.y >= r.y - 2 && p.y <= r.y + r.h + 2) return b;
+      const top = r.y - b.height / 2 - 2;
+      if (!b.dying && p.x >= r.x - 2 && p.x <= r.x + r.w + 2 && p.y >= top && p.y <= r.y + r.h + 2) {
+        if (!best || r.y > best.rect.y) best = b;
+      }
     }
-    return null;
+    return best;
   }
 
   lotAt(p) {
