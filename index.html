@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Mini Transport</title>
+  <link rel="icon" href="icon.svg">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="world"></canvas>
+  <div id="hud">
+    <div id="status" class="panel">
+      <svg id="clock" viewBox="0 0 44 44" aria-hidden="true">
+        <circle class="track" cx="22" cy="22" r="17"></circle>
+        <path id="clock-arc" class="arc" d=""></path>
+        <circle id="clock-sun" class="sun" cx="22" cy="5" r="3.2"></circle>
+      </svg>
+      <div class="stat">
+        <div id="time" class="big">05:30</div>
+        <div id="day" class="small">Day 1</div>
+      </div>
+      <div class="divider"></div>
+      <div class="stat"><div id="money" class="big">$3,000</div><div class="small">Budget</div></div>
+      <div class="stat"><div id="share" class="big">0%</div><div class="small">By transit</div></div>
+      <div class="stat"><div id="missed" class="big">0</div><div class="small">Missed work</div></div>
+    </div>
+    <div id="speed" class="panel"></div>
+    <div id="hint"></div>
+    <div id="toolbar" class="panel"></div>
+    <div id="routes" class="panel"></div>
+    <div id="card" class="panel card hidden"></div>
+    <div id="toast" class="panel"></div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

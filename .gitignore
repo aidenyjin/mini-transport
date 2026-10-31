@@ -1,6 +1,2 @@
-# Godot 4
-.godot/
-/android/
-*.translation
-export_presets.cfg
-export/
+node_modules/
+.DS_Store
